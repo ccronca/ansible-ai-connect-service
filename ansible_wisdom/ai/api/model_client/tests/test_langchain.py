@@ -5,7 +5,7 @@ from textwrap import dedent
 from django.test import TestCase
 from langchain_core.messages.base import BaseMessage
 
-from ansible_ai_connect.ai.api.model_client.langchain import unwrap_answer
+from ansible_ai_connect.ai.api.model_client.langchain import unwrap_task_answer
 
 
 class TestUnwrapAnswer(TestCase):
@@ -27,7 +27,7 @@ class TestUnwrapAnswer(TestCase):
 
         Some more blabla
         """
-        self.assertEqual(unwrap_answer(dedent(answer)), self.expectation)
+        self.assertEqual(unwrap_task_answer(dedent(answer)), self.expectation)
 
     def test_unwrap_markdown_with_backquotes(self):
         # e.g: llama3
@@ -38,7 +38,7 @@ class TestUnwrapAnswer(TestCase):
             msg: something went wrong
         ```
         """
-        self.assertEqual(unwrap_answer(dedent(answer)), self.expectation)
+        self.assertEqual(unwrap_task_answer(dedent(answer)), self.expectation)
 
     def test_unwrap_just_task(self):
         answer = """
@@ -50,7 +50,7 @@ class TestUnwrapAnswer(TestCase):
 
 
         """
-        self.assertEqual(unwrap_answer(dedent(answer)), self.expectation)
+        self.assertEqual(unwrap_task_answer(dedent(answer)), self.expectation)
 
     def test_unwrap_class_with_content_key(self):
         _content = """
@@ -64,4 +64,4 @@ class TestUnwrapAnswer(TestCase):
             pass
 
         message = MyMessage(content=_content, type="whatever")
-        self.assertEqual(unwrap_answer(message), self.expectation)
+        self.assertEqual(unwrap_task_answer(message), self.expectation)
