@@ -15,6 +15,7 @@
 import base64
 import json
 import logging
+import os
 from abc import abstractmethod
 from typing import Any, Dict, Optional
 
@@ -296,6 +297,7 @@ class BaseWCAClient(ModelMeshClient):
 class WCAClient(BaseWCAClient):
     def __init__(self, inference_url):
         super().__init__(inference_url=inference_url)
+        self._access_token = None
 
     def get_token(self, api_key):
         # TODO: store token and only fetch a new one if it has expired
@@ -410,6 +412,49 @@ class WCAClient(BaseWCAClient):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token['access_token']}",
         }
+
+    def _get_access_token(self):
+        if not self._access_token:
+            BLUEMIX_API_KEY = os.getenv("BLUEMIX_API_KEY")
+            BLUEMIX_PASSWORD = os.getenv("BLUEMIX_PASSWORD")
+
+            headers = {"Authorization": f"Basic {BLUEMIX_PASSWORD}"}
+            params = {
+                "apikey": BLUEMIX_API_KEY,
+                "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+            }
+            try:
+                result = self.session.post(
+                    "https://iam.ng.bluemix.net/oidc/token",
+                    headers=headers,
+                    params=params,
+                )
+                response = json.loads(result.text)
+                self._access_token = response["access_token"]
+            except Exception as exc:
+                raise exc
+        return self._access_token
+
+    def generate_playbook(
+        self, text: str = "", create_outline: bool = False, outline: str = ""
+    ) -> tuple[str, str]:
+        access_token = self._get_access_token()
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {access_token}"}
+        model_id = os.getenv("PLAYBOOK_GENERATION_MODEL_NAME")
+        data = {
+            "model_id": model_id,
+            "text": text,
+            "create_outline": create_outline,
+        }
+        if outline:
+            data["outline"] = outline
+        result = self.session.post(
+            f"{self._inference_url}/v1/wca/codegen/ansible/playbook",
+            headers=headers,
+            json=data,
+        )
+        response = json.loads(result.text)
+        return response["playbook"], response["outline"]
 
 
 class WCAOnPremClient(BaseWCAClient):
