@@ -32,8 +32,6 @@ from django.core.cache import cache
 from django.test import modify_settings, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_core.runnables.utils import Input, Output
 from requests.exceptions import ReadTimeout
 from rest_framework.exceptions import APIException
 from rest_framework.test import APITransactionTestCase
@@ -103,14 +101,6 @@ from ansible_ai_connect.test_utils import (
 DEFAULT_SUGGESTION_ID = uuid.uuid4()
 
 
-class MockedLLM(Runnable):
-    def __init__(self, response_data):
-        self.response_data = response_data
-
-    def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
-        return self.response_data
-
-
 class MockedMeshClient(ModelMeshClient):
     def __init__(
         self,
@@ -171,8 +161,13 @@ class MockedMeshClient(ModelMeshClient):
     ) -> str:
         return requested_model_id or ''
 
-    def get_chat_model(self, model_id):
-        return MockedLLM(self.response_data)
+    def explain_playbook(self, content) -> str:
+        return "explanation"
+
+    def generate_playbook(
+        self, text: str = "", create_outline: bool = False, outline: str = ""
+    ) -> tuple[str, str]:
+        return "playbgook", ("outline" if create_outline else "")
 
 
 class WisdomServiceAPITestCaseBase(APITransactionTestCase, WisdomServiceLogAwareTestCase):
@@ -2636,7 +2631,7 @@ that are running Red Hat Enterprise Linux 9.
             r = self.client.post(reverse('explanations'), payload, format='json')
             self.assertEqual(r.status_code, HTTPStatus.BAD_REQUEST)
 
-    @patch(f'{__name__}.MockedLLM.invoke')
+    @patch('ansible_wisdom.ai.api.tests.test_views.MockedMeshClient.explain_playbook')
     def test_service_unavailable(self, invoke):
         invoke.side_effect = Exception('Dummy Exception')
         explanation_id = str(uuid.uuid4())
@@ -2708,8 +2703,8 @@ class TestGenerationView(WisdomServiceAPITestCaseBase):
             self.client.force_authenticate(user=self.user)
             r = self.client.post(reverse('generations'), payload, format='json')
             self.assertEqual(r.status_code, HTTPStatus.OK)
-            self.assertIsNotNone(r.data["text"])
-            self.assertEqual(r.data["format"], "markdown")
+            self.assertIsNotNone(r.data["playbook"])
+            self.assertEqual(r.data["format"], "plaintext")
             self.assertEqual(r.data["generationId"], generation_id)
 
     def test_ok_with_dummy_client(self):
@@ -2727,8 +2722,8 @@ class TestGenerationView(WisdomServiceAPITestCaseBase):
             self.client.force_authenticate(user=self.user)
             r = self.client.post(reverse('generations'), payload, format='json')
             self.assertEqual(r.status_code, HTTPStatus.OK)
-            self.assertIsNotNone(r.data["text"])
-            self.assertEqual(r.data["format"], "markdown")
+            self.assertIsNotNone(r.data["playbook"])
+            self.assertEqual(r.data["format"], "plaintext")
             self.assertEqual(r.data["generationId"], generation_id)
 
     def test_unauthorized(self):
@@ -2773,7 +2768,7 @@ class TestGenerationView(WisdomServiceAPITestCaseBase):
             r = self.client.post(reverse('generations'), payload, format='json')
             self.assertEqual(r.status_code, HTTPStatus.BAD_REQUEST)
 
-    @patch(f'{__name__}.MockedLLM.invoke')
+    @patch('ansible_wisdom.ai.api.tests.test_views.MockedMeshClient.generate_playbook')
     def test_service_unavailable(self, invoke):
         invoke.side_effect = Exception('Dummy Exception')
         generation_id = str(uuid.uuid4())

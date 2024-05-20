@@ -744,15 +744,19 @@ class Explanation(APIView):
         explanation_id = str(request_serializer.validated_data.get("explanationId", ""))
         playbook = request_serializer.validated_data.get("content")
 
-        llm = apps.get_app_config("ai").model_mesh_client
-        explanation = llm.explain_playbook(playbook)
+        try:
+            llm = apps.get_app_config("ai").model_mesh_client
+            explanation = llm.explain_playbook(playbook)
 
-        answer = {"content": explanation, "format": "markdown", "explanationId": explanation_id}
+            answer = {"content": explanation, "format": "markdown", "explanationId": explanation_id}
 
-        return Response(
-            answer,
-            status=rest_framework_status.HTTP_200_OK,
-        )
+            return Response(
+                answer,
+                status=rest_framework_status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception(f"error requesting playbook explanation for {explanation_id}")
+            raise ServiceUnavailable(cause=e)
 
 
 class Generation(APIView):
@@ -795,17 +799,21 @@ class Generation(APIView):
         outline = str(request_serializer.validated_data.get("outline", ""))
         text = request_serializer.validated_data["text"]
 
-        llm = apps.get_app_config("ai").model_mesh_client
-        playbook, outline = llm.generate_playbook(text, create_outline, outline)
+        try:
+            llm = apps.get_app_config("ai").model_mesh_client
+            playbook, outline = llm.generate_playbook(text, create_outline, outline)
 
-        answer = {
-            "playbook": playbook,
-            "outline": outline,
-            "format": "plaintext",
-            "generationId": generation_id,
-        }
+            answer = {
+                "playbook": playbook,
+                "outline": outline,
+                "format": "plaintext",
+                "generationId": generation_id,
+            }
 
-        return Response(
-            answer,
-            status=rest_framework_status.HTTP_200_OK,
-        )
+            return Response(
+                answer,
+                status=rest_framework_status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception(f"error requesting playbook generation for {generation_id}")
+            raise ServiceUnavailable(cause=e)
