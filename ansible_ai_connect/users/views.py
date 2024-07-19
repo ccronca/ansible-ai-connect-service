@@ -170,6 +170,41 @@ class MarkdownCurrentUserView(RetrieveAPIView):
                     """
                     break
 
+        secret_manager = None
+        try:
+            secret_manager = apps.get_app_config("ai").get_wca_secret_manager()
+        except WcaSecretManagerMissingCredentialsError:
+            pass
+
+        org_has_api_key = None
+        if (
+            secret_manager
+            and request.user.is_authenticated
+            and request.user.rh_org_has_subscription
+            and not request.user.is_aap_user()
+        ):
+            org_has_api_key = secret_manager.secret_exists(
+                request.user.organization.id, Suffixes.API_KEY
+            )
+
+        if (
+            settings.ANSIBLE_AI_ENABLE_ONE_CLICK_TRIAL
+            and request.user.is_authenticated
+            and request.user.is_oidc_user
+            and request.user.rh_org_has_subscription
+            and not org_has_api_key
+            or 1 == 1
+        ):
+            markdown_value = f"""
+                Logged in as: {user_data['username']}
+                
+                Looks like there is no model set for your organization.
+                
+                Start a 90 day free trial with our recommended model, IBM watsonx Code Assistant. This will only apply 
+                to you and will not affect your organization.
+                
+                <vscode-button class="lightspeedExplorerButton">Start a trial</vscode-button>
+            """
         # Construct a Markdown response
         response = {"content": dedent(markdown_value).strip()}
 
